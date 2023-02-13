@@ -9,7 +9,9 @@ import models_mae
 
 BATCH_SIZE = 40
 EPOCHS = 1 # 100
+
 continue_from_checkpoint = False
+
 
 class ContrastiveLoss(nn.Module):
     def __init__(self, num_classes=5, margin=1.0) -> None:
