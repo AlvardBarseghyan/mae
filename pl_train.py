@@ -166,7 +166,7 @@ if __name__ == '__main__':
         checkpoint = torch.load(chkpt_dir, map_location=DEVICE)
         msg = model_mae.load_state_dict(checkpoint['model'], strict=False)
 
-        chkpt_dir = '/mnt/2tb/alla/mae/mae_contastive/background_random_init/lightning_logs/version_0/checkpoints/epoch=99-step=200.ckpt'
+        chkpt_dir = '/mnt/2tb/alla/mae/mae_contastive/background_random_init/lightning_logs/version_1/checkpoints/epoch=302-step=606.ckpt'
         model_mae = LightningMAE.load_from_checkpoint(chkpt_dir, model=model_mae)
         model_mae = model_mae.model_mae
 
