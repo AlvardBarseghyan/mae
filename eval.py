@@ -99,7 +99,7 @@ def main():
         path_ann = os.path.join(root, args.annotation_train)
         path_imgs = os.path.join(root, 'images')
         dataset = MAEDataset(path_ann, path_imgs, intersection_threshold=args.intersection_threshold, resize_image=True)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
         num_classes = 5
 
         root_val = '/mnt/2tb/hrant/FAIR1M/fair1m_1000/val1000/'
@@ -115,7 +115,7 @@ def main():
         path_imgs = os.path.join(root, '')
 
         dataset = MAEDataset(path_ann, path_imgs, intersection_threshold=args.intersection_threshold, resize_image=True)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
         num_classes = 11
 
         root_val = '/lwll/development/vis_drone/vis_drone_full/train/'
@@ -129,7 +129,7 @@ def main():
         path_ann = f'./annotations/{args.annotation_train}'
         path_imgs = '/home/ani/nightowls_stage_3/'
         dataset = MAEDataset(path_ann, path_imgs, intersection_threshold=args.intersection_threshold, resize_image=True)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=8, shuffle=True, num_workers=4)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=8, shuffle=False, num_workers=4)
         num_classes = 3
 
 
@@ -166,6 +166,20 @@ def main():
     ref_mean = (ref_sum.T / counts).T
 
     embeds, imgs, labels = return_img_embed(dataloader_val, model_mae)
-    
+    dists = []
+    for i in range(len(dataset)):
+        dists.append(cos_dist(embeds[i], ref_mean).unsqueeze(0))
+
+    dist = torch.cat(dists, dim=0)
+    ckp = args.checkpoint.split('.')[0]
+    torch.save(dist, f'/mnt/2tb/alla/mae/mae_contastive/heatmaps/cos_dists{args.dataset}_{ckp}.pth')
+
+    output = {}
+    output['embedings'] = embeds
+    output['images'] = imgs
+    output['labels'] = labels
+    output['reference_mean'] = ref_mean
+
+    torch.save(output, f'/mnt/2tb/alla/mae/mae_contastive/inference_results/embedings_{args.dataset}_{ckp}.pth')
 if __name__ == '__main__':
     main()
