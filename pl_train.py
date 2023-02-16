@@ -21,9 +21,10 @@ class LightningMAE(pl.LightningModule):
         self.lr = lr
         self.criterion = ContrastiveLoss(num_classes=num_classes, margin=margin)
         self.aim_logger = AimLogger(
-            experiment='debug_final'
+            experiment='vis_drone_final'
         )
         self.checkpoint_callback = ModelCheckpoint(
+            dirpath='./checkpoints',
             filename='{epoch}',
             verbose=True,
             save_last=True,
@@ -125,7 +126,7 @@ def main():
 
     args = parser.parse_args()
 
-    dataloader, dataloader_val, num_classes = get_dataloader(args.dataset_name, args.annotation_train, args.annotation_val, args.intersection_threshold, args.batch_size)
+    dataloader, dataloader_val, num_classes, dataset = get_dataloader(args.dataset_name, args.annotation_train, args.annotation_val, args.intersection_threshold, args.batch_size, True)
     
     if args.server == 'c9':
         chkpt_dir = '/mnt/2tb/hrant/checkpoints/mae_models/mae_visualize_vit_large_ganloss.pth'
@@ -149,10 +150,10 @@ def main():
     model = LightningMAE(model_mae, lr=LEARNING_RATE, l1=L1, num_classes=num_classes)
     if args.device == 'cpu':
         trainer = pl.Trainer(accumulate_grad_batches=4, logger=model.aim_logger, enable_checkpointing=True, limit_predict_batches=args.batch_size, \
-            max_epochs=args.epochs, log_every_n_steps=1, accelerator=args.device, val_check_interval=5, callbacks=[model.checkpoint_callback])
+            max_epochs=args.epochs, log_every_n_steps=1, accelerator=args.device, val_check_interval=int(round(len(dataset)/args.batch_size)), callbacks=[model.checkpoint_callback])
     else:
         trainer = pl.Trainer(accumulate_grad_batches=4, logger=model.aim_logger, enable_checkpointing=True, limit_predict_batches=args.batch_size, \
-            max_epochs=args.epochs, log_every_n_steps=1, accelerator=args.device, devices=1, val_check_interval=5, callbacks=[model.checkpoint_callback])
+            max_epochs=args.epochs, log_every_n_steps=1, accelerator=args.device, devices=1, val_check_interval=int(round(len(dataset)/args.batch_size)), callbacks=[model.checkpoint_callback])
 
     trainer.fit(model=model, train_dataloaders=dataloader, val_dataloaders=dataloader_val)
 
