@@ -21,14 +21,15 @@ class LightningMAE(pl.LightningModule):
         self.lr = lr
         self.criterion = ContrastiveLoss(num_classes=num_classes, margin=margin)
         self.aim_logger = AimLogger(
-            experiment='vis_drone_final'
+            experiment='city_scapes_initial'
         )
         self.checkpoint_callback = ModelCheckpoint(
-            dirpath='./checkpoints',
+            dirpath='./checkpoints/cs',
             filename='{epoch}',
             verbose=True,
             save_last=True,
-            every_n_epochs=5
+            every_n_epochs=5,
+            save_top_k=-1
         )
         # self.save_hyperparameters(ignore=['model'])
 
