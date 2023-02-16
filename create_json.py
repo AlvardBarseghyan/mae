@@ -36,6 +36,14 @@ class CreateJson:
             return int(colors[counts[1:].argmax() + 1])
         
         return int(colors[counts.argmax()])
+
+    
+    def count_colors_cs(self, image):
+        colors, counts = np.unique(image.reshape(-1), return_counts=True, axis = 0)
+        if len(colors) == 1:
+            return int(colors[0])
+
+        return int(colors[counts.argmax()])
     
 
     def scale_box(self, box, scale):
@@ -72,13 +80,29 @@ class CreateJson:
                 black_image_resized = cv2.rectangle(black_image_resized, pts[0], pts[1], (label, 0), -1)
             return black_image, black_image_resized
 
+        if polygon == 'polygon':
+            for polygon, label in zip(iter_by, img_labels):
+                pts = np.array(polygon, np.int32)
+                black_image = cv2.fillPoly(black_image, [pts], (label, 0))
+                polygon_for_scaling = []
+                for p in polygon:
+                    polygon_for_scaling.append(p[0])
+                    polygon_for_scaling.append(p[1])
+                polygon_for_scaling = self.scale_box(polygon_for_scaling, scale)
+                polygon = []
+                for i in range(0, len(polygon_for_scaling), 2):
+                    point = [polygon_for_scaling[i], polygon_for_scaling[i+1]]
+                    polygon.append(point)
+                pts = np.array(polygon, np.int32)                
+                black_image_resized = cv2.fillPoly(black_image_resized, [pts], (label, 0))
+            return black_image, black_image_resized
+
 
     def fillpoly(self, polygon, path_save, split, dataset_name):
         for anns in tqdm(self.annotations['images']):
             img_path, img_id = anns['file_name'], anns['id']
             img_path = os.path.join(self.image_path, img_path)
 
-            img_boxes = [x['bbox'] for x in self.annotations['annotations'] if x['image_id'] == img_id]  # [x1, y1, w, h]
             img_labels = [x['category_id'] for x in self.annotations['annotations'] if x['image_id'] == img_id]  # label
             
             if polygon == 'seg':
@@ -86,14 +110,18 @@ class CreateJson:
                 iter_by = img_segmentation
 
             elif polygon == 'box':
+                img_boxes = [x['bbox'] for x in self.annotations['annotations'] if x['image_id'] == img_id]  # [x1, y1, w, h]
                 iter_by = img_boxes
+
+            elif polygon == 'polygon':
+                img_polygons = [x['polygon'] for x in self.annotations['annotations'] if x['image_id'] == img_id]  # [x1, y1, w, h]
+                iter_by = img_polygons
             
             black_image_resized = np.zeros((IMAGE_SIZE, IMAGE_SIZE))
-            black_image = np.zeros((anns['width'], anns['height']))
+            black_image = np.zeros((anns['height'], anns['width']))
 
             x_scale = IMAGE_SIZE / anns['width']
             y_scale = IMAGE_SIZE / anns['height']
-
 
             black_image, black_image_resized = self.color_by(polygon, iter_by, img_labels, \
                 (x_scale, y_scale), black_image, black_image_resized)
@@ -101,7 +129,10 @@ class CreateJson:
             patch_labels = np.zeros(self.patches_in_row ** 2)
             for i in range(self.patches_in_row ** 2):
                 x1, y1, x2, y2 = self.index_to_bbox(i)
-                label = self.count_colors(black_image_resized[y1:y2, x1:x2])
+                if dataset_name == 'city_scapes':
+                    label = self.count_colors_cs(black_image_resized[y1:y2, x1:x2])
+                else:
+                    label = self.count_colors(black_image_resized[y1:y2, x1:x2])
                 patch_labels[i] = label
 
             anns['file_name'] = img_path
