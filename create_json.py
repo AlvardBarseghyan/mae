@@ -2,7 +2,7 @@ import os
 import cv2
 import json
 import numpy as np
-
+from tqdm import tqdm
 
 IMAGE_SIZE = 224
 
@@ -74,15 +74,15 @@ class CreateJson:
 
 
     def fillpoly(self, polygon, path_save, split, dataset_name):
-        for anns in self.annotations['images']:
+        for anns in tqdm(self.annotations['images']):
             img_path, img_id = anns['file_name'], anns['id']
             img_path = os.path.join(self.image_path, img_path)
 
             img_boxes = [x['bbox'] for x in self.annotations['annotations'] if x['image_id'] == img_id]  # [x1, y1, w, h]
             img_labels = [x['category_id'] for x in self.annotations['annotations'] if x['image_id'] == img_id]  # label
-            img_segmentation = [x['segmentation'][0] for x in self.annotations['annotations'] if x['image_id'] == img_id]
             
             if polygon == 'seg':
+                img_segmentation = [x['segmentation'][0] for x in self.annotations['annotations'] if x['image_id'] == img_id]
                 iter_by = img_segmentation
 
             elif polygon == 'box':
@@ -114,10 +114,14 @@ class CreateJson:
 
 
 if __name__ == "__main__":
-    split = 'train'
-    dataset_name = 'fair1m'
-    root = f'/mnt/2tb/hrant/FAIR1M/fair1m_1000/{split}1000'
-    instance = CreateJson(annotation_path=os.path.join(root, 'few_shot_8.json'),\
-         image_path=os.path.join(root, 'images'),)
+    split = 'val'
+    dataset_name = 'vis_drone'
+    root = '/lwll/development/vis_drone/vis_drone_full/train/'
+    root_val = '/lwll/development/vis_drone/vis_drone_full/train/'
+    # root = f'/mnt/2tb/hrant/FAIR1M/fair1m_1000/{split}1000'
+    # instance = CreateJson(annotation_path=os.path.join(root, 'few_shot_8.json'),\
+    #      image_path=os.path.join(root, 'images'),)
+    instance = CreateJson(annotation_path=os.path.join('./annotations/' 'few_shot_visdrone_val.json'),\
+         image_path=os.path.join(root),)
 
-    instance.fillpoly(path_save='./annotations/', split=f'{split}', dataset_name=dataset_name)
+    instance.fillpoly(path_save='./annotations/', split=f'{split}', dataset_name=dataset_name, polygon='box')
