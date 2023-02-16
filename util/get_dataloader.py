@@ -28,8 +28,10 @@ def get_dataloader(dataset_name, train_annotation_file, val_annotation_file, int
         num_classes = 3
 
     elif dataset_name.lower() == 'city_scapes' or dataset_name.lower() == 'cs':
-        pass
-        # ToDo
+        root = '/mnt/lwll/lwll-coral/hrant/leftImg8bit/train/jena/'
+        root_val = '/mnt/lwll/lwll-coral/hrant/leftImg8bit/val/lindau/'
+
+        num_classes = 33  
 
     path_ann = os.path.join('./annotations/', train_annotation_file)
     path_imgs = os.path.join(root, '')
