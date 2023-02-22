@@ -16,8 +16,9 @@ class MAEDataset(Dataset):
         self.intersection_threshold = intersection_threshold
         self.resize_image = resize_image
         
-        with open(coco_json_path) as f:
-            self.anns = json.load(f)
+        self.anns = np.load(coco_json_path, allow_pickle=True).item()
+        # with open(coco_json_path) as f:
+        #     self.anns = json.load(f)
 
         self.transforms = transforms
 
