@@ -32,22 +32,25 @@ class ContrastiveLoss(nn.Module):
 
 
         positive_loss = (1 - distance_matrix) * cos_dist
-        positive_loss /= (1 - distance_matrix).sum()
-        positive_loss = torch.nan_to_num(positive_loss)
+        if (1 - distance_matrix).sum() != 0:
+            positive_loss /= (1 - distance_matrix).sum()
+        # positive_loss = torch.nan_to_num(positive_loss)
 
         delta = self.margin - cos_dist # if margin == 1, then 1 - cos_dist == cos_sim
         delta= torch.clamp(delta, min=0.0, max=None)
         negative_loss = distance_matrix * delta
-        negative_loss /= distance_matrix.sum()
-        negative_loss = torch.nan_to_num(negative_loss)
+        if distance_matrix.sum() != 0:
+            negative_loss /= distance_matrix.sum()
+        # negative_loss = torch.nan_to_num(negative_loss)
 
         agg_loss = torch.zeros((self.num_classes+1, self.num_classes+1))
         agg_d = torch.zeros((self.num_classes+1, self.num_classes+1))
         label_masks = [labels==i for i in range(self.num_classes+1)]
         for i in range(self.num_classes + 1):
             for j in range(self.num_classes + 1):
+                # print(distance_matrix[label_masks[i]][:, label_masks[j]])
                 agg_loss[i][j] = cos_dist[label_masks[i]][:, label_masks[j]].mean()
-                agg_d[i][j] = distance_matrix[label_masks[i]][:, label_masks[j]].mean()
+                # agg_d[i][j] = distance_matrix[label_masks[i]][:, label_masks[j]].mean()
 
         print(*[x.sum().item() for x in label_masks])
         print(agg_loss)
