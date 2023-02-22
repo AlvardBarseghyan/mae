@@ -1,4 +1,7 @@
 .*
+*.sh
+*.json
+*.npy
 *.pyc
 *.pth
 *.pt
