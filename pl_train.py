@@ -9,6 +9,9 @@ import models_mae
 from util.get_dataloader import get_dataloader
 
 from aim.pytorch_lightning import AimLogger
+from aim import Image
+import numpy as np
+
 
 # TODO: integrate aim
 
@@ -40,9 +43,12 @@ class LightningMAE(pl.LightningModule):
         img_enc, mask, _ = self.model_mae.forward_encoder(img.float(), mask_ratio=0)
         img_enc = img_enc[:, 1:, :].reshape(-1, img_enc.shape[-1])
         print("Loss counting...")
-        loss = self.criterion(img_enc, batch['indices_labels'].reshape(-1))
+        loss = self.criterion(img_enc, batch['indices_labels'].reshape(-1), batch['weighted_labels'].reshape(-1))
         total_loss = loss[0] + self.l1 * loss[1]
+        distance_matrix = loss[2]
+        aim_image = Image(distance_matrix)
         self.log('train_loss', total_loss)
+        self.aim_logger.experiment.track(aim_image, "Confusion Matrix")
         print(f'Iter: {batch_idx}, pos_loss: {loss[0].item()}, neg_loss = {self.l1} * {loss[1].item()}, loss: {total_loss.item()}')
 
         return total_loss
@@ -54,8 +60,12 @@ class LightningMAE(pl.LightningModule):
         img_enc, mask, _ = self.model_mae.forward_encoder(img.float(), mask_ratio=0)
         img_enc = img_enc[:, 1:, :].reshape(-1, img_enc.shape[-1])
         print("Val loss counting...")
-        loss = self.criterion(img_enc, batch['indices_labels'].reshape(-1))
+        loss = self.criterion(img_enc, batch['indices_labels'].reshape(-1), batch['weighted_labels'].reshape(-1))
         total_loss = loss[0] + self.l1 * loss[1]
+        distance_matrix = loss[2]
+        print(np.array(distance_matrix).shape)
+        aim_image = Image(distance_matrix)
+        self.aim_logger.experiment.track(aim_image, "Confusion Matrix val")
         self.log('val_loss', total_loss)
         print(f'Iter: {batch_idx}, val_pos_loss: {loss[0].item()}, val_neg_loss = {self.l1} * {loss[1].item()}, val_loss: {total_loss.item()}')
 
