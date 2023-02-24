@@ -4,6 +4,7 @@ import json
 import numpy as np
 from torch.utils.data import Dataset
 from torchvision.io import read_image
+from collections import Counter
 
 IMAGE_SIZE = 224
 
@@ -21,7 +22,21 @@ class MAEDataset(Dataset):
         #     self.anns = json.load(f)
 
         self.transforms = transforms
+        self.stats_mask, self.stats_patch_labels = self.get_stats()
+        self.weights = {key: 1/ val**0.5 if val !=0 else val for key, val in self.stats_mask.items()}
+        
 
+    def get_stats(self):
+        stats_mask = Counter()
+        stats_patch_labels = Counter()
+        for image in self.anns['images']:
+            mask = np.array(image['black_image'])
+            patch_labels = np.array(image['patch_labels'])
+            for cl in range(0, 35):
+                stats_mask[cl] += np.sum(mask==cl)
+                stats_patch_labels[cl] += np.sum(patch_labels==cl)
+
+        return stats_mask, stats_patch_labels
 
     def __len__(self):
         return len(self.anns['images'])
@@ -79,10 +94,8 @@ class MAEDataset(Dataset):
         else:
             image = image.permute(1, 2, 0).detach().numpy()
         
-        if self.transforms:
-            # TODO: image cropping as transformation
-            pass
-
+        weighted_labels = np.array([self.weights[i] for i in patch_labels])
+        
         target = {}
         target['image'] = image
         # target['black_image'] = black_image
@@ -90,6 +103,7 @@ class MAEDataset(Dataset):
         # target['boxes'] = np.array(img_boxes)
         # target['labels'] = np.array(img_labels)
         target['indices_labels'] = np.array(patch_labels)
+        target['weighted_labels'] = weighted_labels
         # target['image_urls'] = img_urls
 
         
