@@ -2,6 +2,7 @@ import os
 import cv2
 import json
 import numpy as np
+import torch.nn as nn
 from torch.utils.data import Dataset
 from torchvision.io import read_image
 from collections import Counter
@@ -9,11 +10,12 @@ from collections import Counter
 IMAGE_SIZE = 224
 
 class MAEDataset(Dataset):
-    def __init__(self, coco_json_path, image_path,  patch_size=16, intersection_threshold=0.3, resize_image=False, transforms=False):
+    def __init__(self, coco_json_path, image_path, weighted=False, patch_size=16, intersection_threshold=0.3, resize_image=False, transforms=False):
         self.image_path = image_path
         self.patch_size = patch_size
         # number of horizontal and vertical columns. in our case it == 14
         self.pixels_in_patch = IMAGE_SIZE // self.patch_size
+        self.weighted = weighted
         self.intersection_threshold = intersection_threshold
         self.resize_image = resize_image
         
@@ -22,8 +24,9 @@ class MAEDataset(Dataset):
         #     self.anns = json.load(f)
 
         self.transforms = transforms
-        self.stats_mask, self.stats_patch_labels = self.get_stats()
-        self.weights = {key: 1/ val**0.5 if val !=0 else val for key, val in self.stats_mask.items()}
+        if weighted:
+            self.stats_mask, self.stats_patch_labels = self.get_stats()
+            self.weights = {key: 1/ val**0.5 if val !=0 else val for key, val in self.stats_mask.items()}
         
 
     def get_stats(self):
@@ -94,8 +97,6 @@ class MAEDataset(Dataset):
         else:
             image = image.permute(1, 2, 0).detach().numpy()
         
-        weighted_labels = np.array([self.weights[i] for i in patch_labels])
-        
         target = {}
         target['image'] = image
         # target['black_image'] = black_image
@@ -103,7 +104,10 @@ class MAEDataset(Dataset):
         # target['boxes'] = np.array(img_boxes)
         # target['labels'] = np.array(img_labels)
         target['indices_labels'] = np.array(patch_labels)
-        target['weighted_labels'] = weighted_labels
+        if self.weighted:
+            weighted_labels = np.array([self.weights[i] for i in patch_labels])
+            target['weighted_labels'] = weighted_labels
+        
         # target['image_urls'] = img_urls
 
         
