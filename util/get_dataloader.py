@@ -3,7 +3,7 @@ import torch
 
 from dataset import MAEDataset
 
-def get_dataloader(dataset_name, train_annotation_file, val_annotation_file, intersection_threshold, batch_size, return_dataset=False):
+def get_dataloader(dataset_name, train_annotation_file, val_annotation_file, intersection_threshold, batch_size, weighted=False, return_dataset=False):
 
     num_classes = 0
     root = ""
@@ -35,12 +35,12 @@ def get_dataloader(dataset_name, train_annotation_file, val_annotation_file, int
 
     path_ann = os.path.join('./annotations/', train_annotation_file)
     path_imgs = os.path.join(root, '')
-    dataset = MAEDataset(path_ann, path_imgs, intersection_threshold=intersection_threshold, resize_image=True)
+    dataset = MAEDataset(path_ann, path_imgs, weighted=weighted, intersection_threshold=intersection_threshold, resize_image=True)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)
     
     path_ann = os.path.join('./annotations/', val_annotation_file)
     path_imgs = os.path.join(root_val, '')
-    dataset_val = MAEDataset(path_ann, path_imgs, resize_image=True)
+    dataset_val = MAEDataset(path_ann, path_imgs, weighted=weighted, resize_image=True)
     dataloader_val = torch.utils.data.DataLoader(dataset_val, batch_size=batch_size, shuffle=False)
     
 

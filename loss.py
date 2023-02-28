@@ -11,12 +11,13 @@ def cosine_distance_torch(x1, x2=None):
 
 
 class ContrastiveLoss(nn.Module):
-    def __init__(self, num_classes=5, margin=1.0) -> None:
+    def __init__(self, num_classes=5, weighted=False, margin=1.0) -> None:
         super().__init__()
         self.num_classes=num_classes
+        self.weighted = weighted
         self.margin = margin
 
-    def forward(self, img_enc_1, labels, img_enc_2=None):
+    def forward(self, img_enc_1, labels, weighted_labels=None, img_enc_2=None):
         if not img_enc_2:
             # cos_dist = 1 - torchmetrics.functional.pairwise_cosine_similarity(img_enc_1)
             cos_dist = cosine_distance_torch(img_enc_1)
@@ -26,7 +27,6 @@ class ContrastiveLoss(nn.Module):
 
         # d = 0 means y1 and y2 are supposed to be same
         # d = 1 means y1 and y2 are supposed to be different
-
         distance_matrix = (labels.repeat(labels.shape[0], 1) - labels.repeat(labels.shape[0], 1).T)
         distance_matrix = distance_matrix.abs().sign()
 
@@ -34,6 +34,10 @@ class ContrastiveLoss(nn.Module):
         positive_loss = (1 - distance_matrix) * cos_dist
         if (1 - distance_matrix).sum() != 0:
             positive_loss /= (1 - distance_matrix).sum()
+
+        if self.weighted:
+            weights = weighted_labels.repeat(weighted_labels.shape[0], 1)
+            positive_loss *= weights
         # positive_loss = torch.nan_to_num(positive_loss)
 
         delta = self.margin - cos_dist # if margin == 1, then 1 - cos_dist == cos_sim
@@ -56,4 +60,4 @@ class ContrastiveLoss(nn.Module):
         print(agg_loss)
         # print(agg_d)
 
-        return positive_loss.sum(), negative_loss.sum()
+        return positive_loss.sum(), negative_loss.sum(), agg_loss
