@@ -6,8 +6,68 @@ import torch.nn as nn
 from torch.utils.data import Dataset
 from torchvision.io import read_image
 from collections import Counter
+import torch
 
 IMAGE_SIZE = 224
+np.random.seed(32635)
+
+class BinaryDataset(Dataset):
+    def __init__(self, npy_embedings, npy_labels, pred_class, training_number=None, dataset_type='val', shuffle_every_epoch=True):
+        self.dataset_type = dataset_type
+        self.shuffle_every_epoch = shuffle_every_epoch
+        self.pred_class = pred_class
+
+        if dataset_type == 'val':
+            print('Loading embeddings')
+            self.all_embeds = torch.tensor(np.load(npy_embedings, allow_pickle=True))
+            self.all_labels = torch.tensor(np.load(npy_labels, allow_pickle=True))
+
+        else:
+            self.training_number = training_number
+            self.counter = 0
+            print('Loading embeddings')
+
+            self.all_embeds = np.load(npy_embedings, allow_pickle=True)
+            self.all_labels = np.load(npy_labels, allow_pickle=True)
+            class_indices = np.where(self.all_labels == pred_class)[0]
+            self.other_indices = np.where(self.all_labels != pred_class)[0]
+            np.random.shuffle(class_indices)
+            self.positive_indices = class_indices[:training_number]
+            self.positive_embedings = torch.tensor(self.all_embeds[self.positive_indices])
+            np.random.shuffle(self.other_indices)
+            indices = np.concatenate((self.positive_indices, self.other_indices[:self.training_number]), axis=0)
+            self.embedings = torch.tensor(self.all_embeds[indices])
+            self.labels = torch.tensor(self.all_labels[indices])
+
+
+
+    def __getitem__(self, idx):
+        if self.dataset_type == 'val':
+            binary_label = torch.tensor(int(self.all_labels[idx].item()==self.pred_class))
+
+            return   self.all_embeds[idx], binary_label
+
+        else:
+            # print(self.counter)
+            if self.shuffle_every_epoch and self.counter + 1 == self.__len__():
+                # print(self.counter, "new init")
+                print(f'Number of patches: {self.training_number} for class #{self.pred_class} shuffle {self.shuffle_every_epoch}')
+                np.random.shuffle(self.other_indices)
+                indices = np.concatenate((self.positive_indices, self.other_indices[:self.training_number]), axis=0)
+                self.embedings = torch.tensor(self.all_embeds[indices])
+                self.labels = torch.tensor(self.all_labels[indices])
+                self.counter = 0
+
+            binary_label = torch.tensor(int(self.labels[idx].item()==self.pred_class))
+            self.counter += 1
+            return  self.embedings[idx], binary_label
+
+    def __len__(self):
+        if self.dataset_type == 'val':
+            return len(self.all_embeds)
+
+        return 2*len(self.positive_embedings)
+
 
 class MAEDataset(Dataset):
     def __init__(self, coco_json_path, image_path, weighted=False, patch_size=16, intersection_threshold=0.3, resize_image=False, transforms=False):
