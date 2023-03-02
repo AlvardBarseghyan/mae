@@ -6,6 +6,8 @@ import numpy as np
 from tqdm import tqdm
 from PIL import Image
 from pathlib import Path
+from torchvision.io import read_image
+
 
 sys.path.append('../')
 from pl_train import Encoder
@@ -28,8 +30,26 @@ def get_model():
     return encoder.to('cuda')
 
 
+def get_dino_model():
+    device = 'cuda'
+    vitb16 = torch.hub.load('facebookresearch/dino:main', 'dino_vitb16')
+    
+    return vitb16.to(device)
+
+
+def forward_dino(self, x):
+    x = self.prepare_tokens(x)
+    for blk in self.blocks:
+        x = blk(x)
+    x = self.norm(x)
+    return x[:,1:]
+
+
 def get_image_as_array(path: Path):
     return cv2.imread(str(path)) # returns channel X height x width
+
+def get_image_as_tensor(path: Path):
+    return read_image(str(path)) # returns height x width x channel
 
 
 def get_labeled_image(path: Path):
@@ -121,6 +141,26 @@ def get_patches(parent_image_dir: str):
     return embs, lbls
 
 
+def get_dino_resized(img):
+    h, w = (img.shape[0] * 14) // 16, (img.shape[1] * 14) // 16
+    img = cv2.resize(img, (h, w), interpolation=cv2.INTER_CUBIC)
+    return img
+
+
+def get_dino_patches(parent_image_dir: str):
+    embeddings = []
+    # labels = []
+    encoder = get_dino_model()
+    encoder.eval()
+    image_names = get_image_names(parent_image_dir)
+    for name in tqdm(image_names, total=len(image_names)):
+        img = get_image_as_array(name)
+        img = torch.tensor(get_dino_resized(img)).permute(2, 0, 1).unsqueeze(0).to(torch.float)
+        emb = forward_dino(encoder, img.to('cuda'))
+        embeddings.append(emb.to('cpu'))
+
+    embs = torch.cat(embeddings, dim=0).detach().numpy()
+    np.save('/mnt/lwll/lwll-coral/hrant/cs_patches_256/dino_embeds_train.npy', embs)
 
 
 if __name__ == "__main__":
