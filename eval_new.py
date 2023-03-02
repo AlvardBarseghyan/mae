@@ -76,7 +76,7 @@ def main():
     parser.add_argument('--device', default='cuda')
     parser.add_argument(
         '--checkpoint',
-        default='',
+        default='/home/hkhachatrian/mae/checkpoints/road_patches_100_new_dataloader/epoch=9.ckpt',
         help='absolute path to checkpoint to be loaded',
     )
     parser.add_argument(
@@ -88,14 +88,55 @@ def main():
     parser.add_argument(
         '--server',
         type=str,
-        default='c9',
+        default='go',
         help='available server names: c9, go',
     )
-    parser.add_argument('--annotation_train')
-    parser.add_argument('--annotation_val')
+    parser.add_argument('--annotation_train', default='')
+    parser.add_argument('--annotation_val', default='')
     parser.add_argument('--save_evaluated_npy')
-    parser.add_argument('--loss_type')
+    parser.add_argument('--loss_type', default='')
+    parser.add_argument('--binary_classifier', default=False, type=bool)
+    parser.add_argument('--npy_embedings', default='/mnt/lwll/lwll-coral/hrant/cs_patches_256/embeds_val.npy')
+    parser.add_argument('--npy_labels', default='/mnt/lwll/lwll-coral/hrant/cs_patches_256/labels_val.npy')
+    parser.add_argument('--pred_class', default=7, type=int)
+
     args = parser.parse_args()
+
+    if args.binary_classifier:
+        from binary_classifier import Classifier, Model
+        from dataset import BinaryDataset
+        from torchmetrics.classification import BinaryF1Score
+        model = Model(1024, num_classes=1)
+        print(model.__dir__())
+        for name in model.named_parameters():
+            print(name)
+        checkpoint = torch.load(args.checkpoint)
+        msg = model.load_state_dict(checkpoint, strict=False)
+        # model = Classifier.load_from_checkpoint(args.checkpoint, model=model.model)
+        model.to('cuda')
+        model.eval()
+        embeds = torch.tensor(np.load(args.npy_embedings, allow_pickle=True))
+        labels = torch.tensor(np.load(args.npy_labels, allow_pickle=True))
+
+        predictions = []
+        gt_labels = []
+        print('starting predictions')
+        for embed, gt_label in tqdm(zip(embeds, labels), total=len(embeds)):
+            preds = model(embed.to('cuda'))
+            predictions.append(preds.to('cpu').detach())
+            # gt_labels.append(gt_label.to('cpu').detach())
+
+        predictions = torch.cat(predictions, dim=0)
+        # gt_labels = torch.cat(gt_labels, dim=0)
+        # all_data = torch.cat([predictions.unsqueeze(0), gt_labels.unsqueeze(0)], dim=0)
+        torch.save(predictions, './predictions_9_olds.pth')
+
+        metric = BinaryF1Score()
+        # print(metric(predictions, gt_labels))
+        return
+
+
+
 
     dataloader, dataloader_val, num_classes, dataset = get_dataloader(dataset_name=args.dataset_name, \
     train_annotation_file=args.annotation_train, val_annotation_file=args.annotation_val, \
