@@ -31,6 +31,7 @@ def get_model():
 
 
 def get_dino_model():
+    print('Loading dino model')
     device = 'cuda'
     vitb16 = torch.hub.load('facebookresearch/dino:main', 'dino_vitb16')
     
@@ -149,24 +150,39 @@ def get_dino_resized(img):
 
 def get_dino_patches(parent_image_dir: str):
     embeddings = []
-    # labels = []
+    labels = []
     encoder = get_dino_model()
     encoder.eval()
     image_names = get_image_names(parent_image_dir)
     for name in tqdm(image_names, total=len(image_names)):
         img = get_image_as_array(name)
-        img = torch.tensor(get_dino_resized(img)).permute(2, 0, 1).unsqueeze(0).to(torch.float)
-        emb = forward_dino(encoder, img.to('cuda'))
-        embeddings.append(emb.to('cpu'))
+        label_name = get_label_path(name)
+        lbl_img = get_labeled_image(label_name)
+        cropped_imgs, cropped_labels = get_cropped_images(image=img, \
+                                        labeled_image=lbl_img, height=img.shape[0], width=img.shape[1])
 
-    embs = torch.cat(embeddings, dim=0).detach().numpy()
+        for i in range(len(cropped_labels)):
+            tmp_img = get_image_normalized(cropped_imgs[i])
+            tmp_img = np.expand_dims(tmp_img.transpose(2, 0, 1), axis=0)
+            tmp_img = torch.tensor(tmp_img, dtype=torch.float).detach()
+            tmp_emb = forward_dino(encoder, tmp_img.to('cuda'))
+            embeddings.append(tmp_emb.to('cpu').detach())
+            labels.append(cropped_labels[i])
+
+    embs = torch.cat(embeddings, dim=1).squeeze(0).detach().numpy()
+    lbls = np.concatenate(labels, axis=0)
     np.save('/mnt/lwll/lwll-coral/hrant/cs_patches_256/dino_embeds_train.npy', embs)
+    np.save('/mnt/lwll/lwll-coral/hrant/cs_patches_256/dino_labels_train.npy', lbls)
+
+    return embs, lbls
 
 
 if __name__ == "__main__":
     
-    x, y = get_patches('/mnt/lwll/lwll-coral/hrant/leftImg8bit/val/')
-    print(x[0], y[0])
+    # x, y = get_patches('/mnt/lwll/lwll-coral/hrant/leftImg8bit/train/')
+    # print(x[0], y[0])
+    # print(x.shape, y.shape)
+    x, y = get_dino_patches('/mnt/lwll/lwll-coral/hrant/leftImg8bit/train/')
     print(x.shape, y.shape)
     # model = get_model()
     # print(np.expand_dims(x[0].transpose(2, 0, 1), axis=0).shape)
