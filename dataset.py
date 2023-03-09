@@ -19,16 +19,17 @@ class BinaryDataset(Dataset):
 
         if dataset_type == 'val':
             print('Loading embeddings')
-            self.all_embeds = torch.tensor(np.load(npy_embedings, allow_pickle=True))
-            self.all_labels = torch.tensor(np.load(npy_labels, allow_pickle=True))
+            self.all_embeds = npy_embedings
+            self.all_labels = npy_labels
 
         else:
             self.training_number = training_number
             self.counter = 0
             print('Loading embeddings')
+            print(f'Number of patches: {self.training_number} for class #{self.pred_class} shuffle {self.shuffle_every_epoch}')
 
-            self.all_embeds = np.load(npy_embedings, allow_pickle=True)
-            self.all_labels = np.load(npy_labels, allow_pickle=True)
+            self.all_embeds = torch.tensor(npy_embedings)
+            self.all_labels = torch.tensor(npy_labels)
             class_indices = np.where(self.all_labels == pred_class)[0]
             self.other_indices = np.where(self.all_labels != pred_class)[0]
             np.random.shuffle(class_indices)
@@ -50,12 +51,13 @@ class BinaryDataset(Dataset):
         else:
             # print(self.counter)
             if self.shuffle_every_epoch and self.counter + 1 == self.__len__():
-                # print(self.counter, "new init")
-                print(f'Number of patches: {self.training_number} for class #{self.pred_class} shuffle {self.shuffle_every_epoch}')
+                print(self.counter, "new init")
+                print('Everyday Im shuffling')
+                # print(f'Number of patches: {self.training_number} for class #{self.pred_class} shuffle {self.shuffle_every_epoch}')
                 np.random.shuffle(self.other_indices)
                 indices = np.concatenate((self.positive_indices, self.other_indices[:self.training_number]), axis=0)
-                self.embedings = torch.tensor(self.all_embeds[indices])
-                self.labels = torch.tensor(self.all_labels[indices])
+                self.embedings = self.all_embeds[indices]
+                self.labels = self.all_labels[indices]
                 self.counter = 0
 
             binary_label = torch.tensor(int(self.labels[idx].item()==self.pred_class))
