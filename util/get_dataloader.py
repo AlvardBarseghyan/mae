@@ -15,7 +15,7 @@ def get_dataloader(dataset_name, train_annotation_file, val_annotation_file, int
 
         num_classes = 5
 
-    elif dataset_name.lower() == 'vis_drone' or dataset_name.lower() == 'vs':
+    elif dataset_name.lower() == 'vis_drone' or dataset_name.lower() == 'vd':
         root = '/lwll/development/vis_drone/vis_drone_full/train/'
         root_val = '/lwll/development/vis_drone/vis_drone_full/train/'
 
@@ -36,7 +36,7 @@ def get_dataloader(dataset_name, train_annotation_file, val_annotation_file, int
     path_ann = os.path.join('./annotations/', train_annotation_file)
     path_imgs = os.path.join(root, '')
     dataset = MAEDataset(path_ann, path_imgs, weighted=weighted, intersection_threshold=intersection_threshold, resize_image=True)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
     
     path_ann = os.path.join('./annotations/', val_annotation_file)
     path_imgs = os.path.join(root_val, '')
