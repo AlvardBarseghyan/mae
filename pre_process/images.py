@@ -14,9 +14,9 @@ from pl_train import Encoder
 import models_mae
 
 
-DATASET_NAME = 'fair1m' # 'cs'
+DATASET_NAME = 'fair1m' # 'cs' # 
 IMAGE_SIZE=224
-MODEL='mae' #'dino' # 
+MODEL='dino' # 'mae' #
 
 def get_model():
     device = 'cuda'
@@ -155,44 +155,10 @@ def get_patches(parent_image_dir: str):
         embs = torch.cat(embeddings).detach().numpy()
     lbls = np.concatenate(labels, axis=0)
 
-    np.save('/mnt/lwll/lwll-coral/hrant/cs_patches_256/embeds_val.npy', embs)
-    np.save('/mnt/lwll/lwll-coral/hrant/cs_patches_256/labels_val.npy', lbls)
+    np.save(f'/mnt/lwll/lwll-coral/hrant/cs_patches_256/{MODEL}_embeds_val.npy', embs)
+    np.save(f'/mnt/lwll/lwll-coral/hrant/cs_patches_256/{MODEL}_labels_val.npy', lbls)
     return embs, lbls
 
-
-# def get_dino_resized(img):
-#     h, w = (img.shape[0] * 14) // 16, (img.shape[1] * 14) // 16
-#     img = cv2.resize(img, (h, w), interpolation=cv2.INTER_CUBIC)
-#     return img
-
-
-# def get_dino_patches(parent_image_dir: str):
-#     embeddings = []
-#     labels = []
-#     encoder = get_dino_model()
-#     encoder.eval()
-#     image_names = get_image_names(parent_image_dir)
-#     for name in tqdm(image_names, total=len(image_names)):
-#         img = get_image_as_array(name)
-#         label_name = get_label_path(name)
-#         lbl_img = get_labeled_image(label_name)
-#         cropped_imgs, cropped_labels = get_cropped_images(image=img, \
-#                                         labeled_image=lbl_img, height=img.shape[0], width=img.shape[1])
-
-#         for i in range(len(cropped_labels)):
-#             tmp_img = get_image_normalized(cropped_imgs[i])
-#             tmp_img = np.expand_dims(tmp_img.transpose(2, 0, 1), axis=0)
-#             tmp_img = torch.tensor(tmp_img, dtype=torch.float).detach()
-#             tmp_emb = forward_dino(encoder, tmp_img.to('cuda'))
-#             embeddings.append(tmp_emb.to('cpu').detach())
-#             labels.append(cropped_labels[i])
-
-#     embs = torch.cat(embeddings, dim=1).squeeze(0).detach().numpy()
-#     lbls = np.concatenate(labels, axis=0)
-#     np.save('/mnt/lwll/lwll-coral/hrant/cs_patches_256/dino_embeds_train.npy', embs)
-#     np.save('/mnt/lwll/lwll-coral/hrant/cs_patches_256/dino_labels_train.npy', lbls)
-
-#     return embs, lbls
 
 def get_patches_f1m(parent_image_dir: str, annot_file: str):
     embeddings = []
@@ -221,27 +187,34 @@ def get_patches_f1m(parent_image_dir: str, annot_file: str):
                 tmp_emb = encoder(tmp_img.to('cuda'))
 
             embeddings.append(tmp_emb.to('cpu').detach())
-            # labels.append(cropped_labels[i])
+            labels.append(cropped_labels[i])
 
-    np.save(f'/mnt/2tb/alla/embeddings/fair1m/f1m_{MODEL}_embeds_train.npy', embeddings)
     print('cat embeds...')
     if MODEL == 'dino':
         embs = torch.cat(embeddings, dim=1).squeeze(0).detach().numpy()
     elif MODEL == 'mae':
         embs = torch.cat(embeddings).detach().numpy()
-    # lbls = np.concatenate(labels, axis=0)
+    lbls = np.concatenate(labels, axis=0)
     print('saving...')
-    np.save(f'/mnt/2tb/alla/embeddings/fair1m/f1m_{MODEL}_embeds_train.npy', embs)
+    if 'train' in annot_file:
+        np.save(f'/mnt/lwll/lwll-coral/hrant/embeddings/fair1m/f1m_{MODEL}_embeds_train.npy', embs)
+        np.save(f'/mnt/lwll/lwll-coral/hrant/embeddings/fair1m/f1m_{MODEL}_labels_train.npy', lbls)
+    if 'val' in annot_file:
+        np.save(f'/mnt/lwll/lwll-coral/hrant/embeddings/fair1m/f1m_{MODEL}_embeds_val.npy', embs)
+        np.save(f'/mnt/lwll/lwll-coral/hrant/embeddings/fair1m/f1m_{MODEL}_labels_val.npy', lbls)
+    # np.save(f'/mnt/2tb/alla/embeddings/fair1m/f1m_{MODEL}_embeds_train.npy', embs)
     # np.save(f'/mnt/2tb/alla/embeddings/fair1m/f1m_{MODEL}_labels_train.npy', lbls)
-    return embs #, lbls
+    return embs, lbls
 
 
 if __name__ == "__main__":
     
-    # x, y = get_patches('/mnt/lwll/lwll-coral/hrant/leftImg8bit/train/')
+    # x, y = get_patches('/mnt/lwll/lwll-coral/hrant/leftImg8bit/val/')
     # print(x[0], y[0])
     # print(x.shape, y.shape)
-    x, y = get_patches_f1m('/mnt/2tb/hrant/FAIR1M/fair1m_1000/train1000/images/', '../annotations/f1m_labeled_200_train.npy')
+    x, y = get_patches_f1m('/mnt/lwll/lwll-coral/FAIR1M/fair1m_1000/train1000/images/', '../annotations/f1m_labeled_200_train.npy')
+    print(x.shape, y.shape)
+    x, y = get_patches_f1m('/mnt/lwll/lwll-coral/FAIR1M/fair1m_1000/val1000/images/', '../annotations/f1m_labeled_200_val.npy')
     print(x.shape, y.shape)
     # model = get_model()
     # print(np.expand_dims(x[0].transpose(2, 0, 1), axis=0).shape)
