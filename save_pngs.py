@@ -13,7 +13,7 @@ parser.add_argument('--saving_path')
 # parser.add_argument('--save_name_npy', default='cs4pc_upsampled_200_train.npy')
 args = parser.parse_args()
 
-annots = np.load(os.path.join(args.ann_root, args.annotation), allow_pickle=True)
+annots = np.load(os.path.join(args.ann_root, args.annotation), allow_pickle=True).item()['images']
 
 os.makedirs(args.saving_path, exist_ok=True)
 for ann in tqdm(annots, total=len(annots)):
