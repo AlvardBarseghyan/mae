@@ -11,3 +11,6 @@
 *.ipynb
 *.txt
 openseg*
+evaluation
+annotations
+checkpoints
