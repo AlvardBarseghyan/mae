@@ -15,9 +15,10 @@ from aim.pytorch_lightning import AimLogger
 class Encoder(pl.LightningModule):
     def __init__(self, model, num_classes, backbone_freeze=False, classifier='linear'):
         super().__init__()
-        self.model = model
+        self.model = model[0]
+        self.preprocess = model[1]
         self.classifier = classifier
-        # self.backbone_freeze = backbone_freeze
+        self.backbone_freeze = backbone_freeze
         
 
         # if self.classifier == 'linear' or self.classifier == 'both':
@@ -25,14 +26,14 @@ class Encoder(pl.LightningModule):
         #     self.activation = nn.Softmax(dim=-1)
         
 
-    def forward(self, x, mask_ratio=0):
-        x = self.model[0](x)
+    def forward(self, x):
+        # x = self.preprocess(x)
         if self.backbone_freeze:
             self.model.eval()
             with torch.no_grad():
-                img_enc = self.model[0].encode_image(x)
+                img_enc = self.model.encode_image(x)
         else:
-            img_enc = self.model[0].encode_image(x)
+            img_enc = self.model.encode_image(x)
         print('Encoder: feature shape', img_enc.shape)    
         # img_enc = img_enc[:, 1:, :].reshape(-1, img_enc.shape[-1])
         img_enc = img_enc.reshape(-1, img_enc.shape[-1])
@@ -47,7 +48,7 @@ class Encoder(pl.LightningModule):
         
 
 
-class LightningMAE(pl.LightningModule):
+class LightningCLIP(pl.LightningModule):
     def __init__(self, model, weighted=False, loss_type='contrastive', experiment='', l1=0.5, lr=1e-4, num_classes=5, margin=1):
         super().__init__()
         self.model = model
@@ -131,7 +132,7 @@ class LightningMAE(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
 
         img = torch.einsum('nhwc->nchw', batch['image'])
-        img_enc = self.model(img.float(), mask_ratio=0)
+        img_enc = self.model(img.float())
         if self.loss_type == 'linear':
             one_hot_labels = nn.functional.one_hot(batch['indices_labels'].reshape(-1).to(torch.int64), self.num_classes+1)
             total_loss = self.criterion(img_enc, one_hot_labels.to(torch.float32))
@@ -173,7 +174,7 @@ class LightningMAE(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.model_mae.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         return optimizer
 
 
@@ -249,7 +250,7 @@ def main():
     
     assert args.server in ('c9', 'go'), 'Available server names are c9 and go'
 
-    model = clip.load("ViT-L/16", device=args.device)
+    model = clip.load("ViT-B/16", device=args.device)
 
     # if not args.random_init:
     #     checkpoint = torch.load(chkpt_dir, map_location=args.device)
@@ -264,7 +265,7 @@ def main():
     print(args.weighted, int(args.weighted), args.backbone_freeze, int(args.backbone_freeze))
     encoder = Encoder(model=model, num_classes=num_classes, backbone_freeze=args.backbone_freeze, classifier=args.loss_type)
 
-    model = LightningMAE(model=encoder, weighted=args.weighted, loss_type=args.loss_type, experiment=args.experiment, lr=LEARNING_RATE, l1=L1, num_classes=num_classes)
+    model = LightningCLIP(model=encoder, weighted=args.weighted, loss_type=args.loss_type, experiment=args.experiment, lr=LEARNING_RATE, l1=L1, num_classes=num_classes)
     if args.device == 'cpu':
         trainer = pl.Trainer(accumulate_grad_batches=32, logger=model.aim_logger, enable_checkpointing=True, limit_predict_batches=args.batch_size, \
             max_epochs=args.epochs, log_every_n_steps=1, accelerator=args.device, val_check_interval=int(round(len(dataset)/args.batch_size)), callbacks=[model.checkpoint_callback])
