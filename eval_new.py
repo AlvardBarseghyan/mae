@@ -1,4 +1,5 @@
 import os
+import clip
 import torch
 import argparse
 import numpy as np
@@ -9,26 +10,59 @@ from torchmetrics.functional import pairwise_cosine_similarity as cos_dist
 
 from dataset import MAEDataset
 from pl_train import LightningMAE, Encoder
+from train_clip import Encoder as encode_clip
+from train_clip import LightningCLIP
 
 import models_mae
 
 
+MODEL = 'clip' # 'dino' # 'mae' #
+ 
+def get_dino_model():
+    print('Loading dino model')
+    device = 'cuda'
+    vitb16 = torch.hub.load('facebookresearch/dino:main', 'dino_vitb16')
+    
+    return vitb16.to(device)
+
+
+def forward_dino(self, x):
+    x = self.prepare_tokens(x)
+    for blk in self.blocks:
+        x = blk(x)
+    x = self.norm(x)
+    return x[:,1:]
+
+
 def count_reference(dataloader, model, device, num_classes=5):
     # model.eval()
-    print(num_classes)
-    reference_sum = torch.zeros((num_classes+1, 1024)).to(device)
+    print("num_classes:", num_classes)
+    if MODEL == 'mae':
+        reference_sum = torch.zeros((num_classes+1, 1024)).to(device)
+    elif MODEL == 'dino':
+        reference_sum = torch.zeros((num_classes+1, 768)).to(device)
+    elif MODEL == 'clip':
+        reference_sum = torch.zeros((num_classes+1, 512)).to(device)
     counts = torch.zeros(num_classes+1).to(device)
     # print(counts.shape)
     for i, ds in tqdm(enumerate(dataloader), total=len(dataloader)):
         img = torch.einsum('nhwc->nchw', ds['image']).to(device)
-        img_enc = model(img.float(), mask_ratio=0) #.reshape(-1, 1024)
+        if MODEL == 'mae':
+            img_enc = model(img.float(), mask_ratio=0) #.reshape(-1, 1024)
+        elif MODEL == 'dino':
+            img_enc = tmp_emb = forward_dino(model, img.float())
+            img_enc = img_enc.reshape(-1, img_enc.shape[-1])
+        elif MODEL == 'clip':
+            img_enc = model(img.float()).reshape(-1, 512)
         index_labels = ds['indices_labels'].reshape(-1).to(device)
         for j in torch.unique(torch.tensor(index_labels, dtype=int).clone().detach()):
             indices = (index_labels == j).nonzero()
+            # print('indices shape:', indices)
             # print(j, counts.shape)
             counts[j] += indices.shape[0]
             new = img_enc[indices].reshape(-1, img_enc.shape[-1])
             # print('class:', j, 'sum:', new.shape, 'shape:', new.sum(dim=0).shape)
+            
             reference_sum[j] += new.sum(dim=0).clone().detach()
             
     return reference_sum, counts
@@ -41,14 +75,21 @@ def return_img_embed(dataloader, model, device):
     filenames = []
     for i, ds in tqdm(enumerate(dataloader), total=len(dataloader)):
         img = torch.einsum('nhwc->nchw', ds['image']).to(device)
-        img_enc = model(img.float(), mask_ratio=0)
+        if MODEL == 'mae':
+            img_enc = model(img.float(), mask_ratio=0) #.reshape(-1, 1024)
+            img_enc = img_enc.reshape(10, -1, 1024)
+        elif MODEL == 'dino':
+            img_enc = forward_dino(model, img.float())
+        elif MODEL == 'clip':
+            img_enc = model(img)
+
         # img_enc = model(img.float()) #.reshape(-1)
-        img_enc = img_enc.reshape(10, -1, 1024)
+        
         index_labels = ds['indices_labels'] #.reshape(-1)
 
-        labels.append(index_labels)
-        images.append(img.detach())
-        output.append(img_enc.detach())
+        labels.append(index_labels.to('cpu'))
+        images.append(img.to('cpu').detach())
+        output.append(img_enc.to('cpu').detach())
         filenames.extend(ds['file_name'])
 
             
@@ -150,43 +191,60 @@ def main():
     
     assert args.server in ('c9', 'go'), 'Available server names are c9 and go'
 
-    arch='mae_vit_large_patch16'
-    model_mae = getattr(models_mae, arch)()
+    if MODEL == 'mae':
+        arch='mae_vit_large_patch16'
+        model_mae = getattr(models_mae, arch)()
 
-    checkpoint = torch.load(chkpt_dir, map_location=args.device)
-    msg = model_mae.load_state_dict(checkpoint['model'], strict=False)
-    print(msg)
+        checkpoint = torch.load(chkpt_dir, map_location=args.device)
+        msg = model_mae.load_state_dict(checkpoint['model'], strict=False)
+        print(msg)
 
-    chkpt_dir = args.checkpoint
-    model_mae = Encoder(model=model_mae, num_classes=num_classes, classifier=args.loss_type)
-    model_mae = LightningMAE.load_from_checkpoint(chkpt_dir, model=model_mae)
-    model_mae.eval()
-    model_mae.to(args.device)
-    model_mae = model_mae.model_mae
+        chkpt_dir = args.checkpoint
+        encoder = Encoder(model=model_mae, num_classes=num_classes, classifier=args.loss_type)
+        checkpoints = torch.load(chkpt_dir)
+        msg = encoder.load_state_dict(checkpoints, strict=False)
+    # model_mae = LightningMAE.load_from_checkpoint(chkpt_dir, model=model_mae)
+    elif MODEL == 'dino':
+        encoder = get_dino_model()
+
+    elif MODEL == 'clip':
+        model = clip.load("ViT-B/16", device=args.device)
+        encoder = encode_clip(model=model, num_classes=num_classes, classifier=args.loss_type)
+        checkpoints = torch.load(args.checkpoint)
+        msg = encoder.load_state_dict(checkpoints, strict=False)
+        # model = LightningCLIP.load_from_checkpoint(args.checkpoint, model=model)
+
+ 
+    encoder.eval()
+    encoder.to(args.device)
+    # model_mae = model_mae.model_mae
     print("class count:", num_classes)
-    for name, param in model_mae.named_parameters():
-        if 'head' in name:
-            print(name)
+    # for name, param in model_mae.named_parameters():
+    #     if 'head' in name:
+    #         print(name)
             
     if args.loss_type == 'contrastive':
         ref_sum, counts = count_reference(
             dataloader=dataloader, 
-            model=model_mae, 
+            model=encoder, 
             device=args.device,
             num_classes=num_classes)
 
         ref_mean = (ref_sum.T / counts).T
         ref_mean = ref_mean.nan_to_num(1)
-        embeds, imgs, labels, filenames = return_img_embed(dataloader_val, model_mae, args.device)
+        embeds, imgs, labels, filenames = return_img_embed(dataloader_val, encoder, args.device)
 
         ckp = args.checkpoint.split('/')[-1].split('.')[0]
         print(len(filenames), filenames[0])
         output = {}
         output['images'] = []
         print(embeds.shape)
+        print(embeds[0].shape)
+        print(ref_mean.shape)
+        print(cos_dist(embeds[0].to('cpu'), ref_mean.to('cpu')))
         for i in range(len(embeds)):
             # print(embeds[i].shape, ref_mean.shape)
-            tmp_dist = cos_dist(embeds[i], ref_mean)
+            tmp_dist = cos_dist(embeds[i].to('cpu'), ref_mean.to('cpu'))
             tmp_dct = {
                 'file_name': filenames[i],
                 'patch_labels': tmp_dist.argmax(dim=-1).to('cpu').numpy(),
@@ -211,7 +269,7 @@ def main():
         output['images'] = []
         for ds in tqdm(dataloader_val, total=len(dataloader_val)):
             img = torch.einsum('nhwc->nchw', ds['image']).to(args.device)
-            img_enc = model_mae(img.float(), mask_ratio=0)
+            img_enc = encoder(img.float(), mask_ratio=0)
             img_enc = img_enc.reshape(args.batch_size, -1, img_enc.shape[-1])
             
             for batch_idx, file_name in enumerate(ds['file_name']):
