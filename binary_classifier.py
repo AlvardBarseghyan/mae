@@ -147,8 +147,8 @@ def main():
 
     embeds_val = torch.tensor(np.load(args.embedings_val, allow_pickle=True))
     labels_val = torch.tensor(np.load(args.labels_val, allow_pickle=True))
-    classes = [7,  8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33]
-    # classes = [24]
+    # classes = [7,  8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33]
+    classes = [28, 31, 32, 33]
     for cls in classes:
         train_dataset = BinaryDataset(npy_embedings=embeds_train, npy_labels=labels_train,\
             pred_class=cls,training_number=args.training_number, dataset_type='train', \
@@ -163,7 +163,7 @@ def main():
 
         if args.model == 'dino':
             emb_size = 768
-        elif args.model == 'mae':
+        elif args.model == 'mae' or args.model == 'sup_vit':
             emb_size = 1024
         model = Model(emb_size=emb_size, num_classes=1)
         model = Classifier(model=model,learning_rate=args.learning_rate, experiment=f'{class_dct[cls][0]}_{args.experiment}')
