@@ -16,6 +16,7 @@ class Encoder(pl.LightningModule):
     def __init__(self, model, num_classes, backbone_freeze=False, classifier='linear'):
         super().__init__()
         self.model = model[0]
+        print(self.model)
         self.preprocess = model[1]
         self.classifier = classifier
         self.backbone_freeze = backbone_freeze
@@ -32,8 +33,11 @@ class Encoder(pl.LightningModule):
             self.model.eval()
             with torch.no_grad():
                 img_enc = self.model.encode_image(x)
+                print(img_enc.shape)
         else:
             img_enc = self.model.encode_image(x)
+            print(img_enc.shape)
+
         print('Encoder: feature shape', img_enc.shape)    
         # img_enc = img_enc[:, 1:, :].reshape(-1, img_enc.shape[-1])
         img_enc = img_enc.reshape(-1, img_enc.shape[-1])

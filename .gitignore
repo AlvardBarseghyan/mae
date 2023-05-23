@@ -14,3 +14,8 @@ openseg*
 evaluation
 annotations
 checkpoints
+wandb
+images
+predictions
+embeddings
+knn_cm
