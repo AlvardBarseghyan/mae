@@ -10,7 +10,7 @@ def main(args):
     reconstructed_imgs = []
     path = os.path.join(args.ann_root, args.cropped_npy)
     n_patches = 14
-    if 'dinov2' in path:
+    if 'dinov2' in path or 'ijepa' in path:
         n_patches = 16
     try:
         cropped_images = np.load(path, allow_pickle=True).item()['images']
@@ -18,7 +18,7 @@ def main(args):
         cropped_images = np.load(path, allow_pickle=True)
     prev_image_name = cropped_images[0]['file_name'].split('/')[-1].split('.')[0]
     save_json = []
-    # complete_imgs_path = os.path.join(args.ann_root, args.complete_npy)
+    complete_imgs_path = os.path.join(args.ann_root, args.complete_npy)
     complete_imgs = np.load(args.complete_npy, allow_pickle=True).item()['images']
     current_image = np.zeros([1500, 2500])
     max_i = max_j = 0
@@ -30,7 +30,6 @@ def main(args):
         split_size, i, j = [int(indices[0]), int(indices[1]), int(indices[2])]
 
         if image_name != prev_image_name:
-            
             prev_img_info = [x for x in complete_imgs if prev_image_name in x['file_name']][0]
             w, h = prev_img_info['width'], prev_img_info['height']
 

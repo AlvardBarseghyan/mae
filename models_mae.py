@@ -179,7 +179,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x, mask, ids_restore
 
-    def forward_decoder(self, x, ids_restore, feature_embeds, zeros):
+    def forward_decoder(self, x, ids_restore, feature_embeds, zeros, random):
         # embed tokens
         # add noise/zeros to high variance
         if feature_embeds:
@@ -200,8 +200,12 @@ class MaskedAutoencoderViT(nn.Module):
                 else:
                     x[:, :, var_indices[start:end]] = 0
             else:
-                print('Feature embeds is a list with 2 elements with start and end indices of variance')
-                print('Nothing changed in embeddings')
+                if random and zeros:
+                    indices = np.random.randint(0, 768, size=feature_embeds)
+                    x[:, :, indices] = 0
+                else:
+                    print('Feature embeds is a list with 2 elements with start and end indices of variance')
+                    print('Nothing changed in embeddings')
 
 
         x = self.decoder_embed(x)
@@ -245,9 +249,9 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         return loss
 
-    def forward(self, imgs, mask_ratio=0.75, feature_embeds=None, zeros=False):
+    def forward(self, imgs, mask_ratio=0.75, feature_embeds=None, zeros=False, random=False):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
-        pred = self.forward_decoder(latent, ids_restore, feature_embeds, zeros)  # [N, L, p*p*3]
+        pred = self.forward_decoder(latent, ids_restore, feature_embeds, zeros, random)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
 

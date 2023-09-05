@@ -33,6 +33,12 @@ def get_dataloader(dataset_name, train_annotation_file, val_annotation_file, bat
 
         num_classes = 3
 
+    elif dataset_name.lower() == 'ade20k':
+        root_train = 'whatever'
+        root_val = 'whatever'
+
+        num_classes = 150
+
     if read_embeds:
         assert len(train_annotation_file) == 2, "This variable should be a tuple of embedding and label file paths"
         assert len(val_annotation_file) == 2, "This variable should be a tuple of embedding and label file paths"

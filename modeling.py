@@ -96,7 +96,31 @@ class Encoder(torch.nn.Module):
             return x[:, 1:]
         return x[:, 0]
 
+    def forward_ijepa(self, x):
 
+        # -- patchify x
+        x = self.model.patch_embed(x)
+        B, N, D = x.shape
+
+        # -- add positional embedding to x
+        pos_embed = self.model.interpolate_pos_encoding(x, self.model.pos_embed)
+        x = x + pos_embed
+
+        # -- fwd prop
+        for i, blk in enumerate(self.model.blocks):
+            x = blk(x)
+
+        if self.model.norm is not None:
+            x = self.model.norm(x)
+        # print(x.shape)
+        return x
+
+    def forward_beit(self, x):
+        # x = self.model(sx)
+        # x = x.last_hidden_state
+        x = self.model.forward(x)
+        # print(x.last_hidden_state.shape)
+        return x.last_hidden_state[:, 1:]
 
 class Decoder(torch.nn.Module):
     def __init__(self, num_classes, emb_size=768, classifier_name='linear') -> None:
@@ -196,6 +220,6 @@ class Segmenter(pl.LightningModule):
             else:
                 x = self.encoder.forward(x)
             
-        x = self.decoder(x)
+        x = self.decoder(x.to(self.device))
 
         return x

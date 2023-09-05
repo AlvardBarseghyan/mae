@@ -44,7 +44,6 @@ class SegTrainer(Segmenter):
                          hparams_dict['backbone_freeze'], hparams_dict['read_embeds'])
         # , hparams_dict['bilinear_upsampling'], hparams_dict['deconvolution'],
 
-        self.auc = AUROC(task="multiclass", num_classes=self.num_classes+1)
         self.soft_activation = torch.nn.Softmax(dim=-1)
 
         if self.loss_type == 'contrastive':
@@ -93,13 +92,14 @@ class SegTrainer(Segmenter):
         with open(config_save_path, 'w') as cf:
             json.dump(hparams_dict, cf)
 
-        self.trainer = pl.Trainer(accumulate_grad_batches=32, logger=wandb_logger, enable_checkpointing=True,
+        self.trainer = pl.Trainer( logger=wandb_logger, enable_checkpointing=True,
                                   limit_predict_batches=hparams_dict[
-                                      'batch_size'], max_epochs=hparams_dict['epochs'], log_every_n_steps=1,
-                                  accelerator=hparams_dict['device'], val_check_interval=int(
+                                      'batch_size'], max_epochs=hparams_dict['epochs'], 
+                                   val_check_interval=int(
                                       round(dataset_len/hparams_dict['batch_size'])),
                                   callbacks=[self.checkpoint_callback_loss, self.checkpoint_callback_acc], )
         os.environ['WANDB_DISABLED'] = 'true'
+        self.validation_step_outputs = []
 
     def training_step(self, batch, batch_idx):
         if self.read_embeds:
@@ -107,8 +107,8 @@ class SegTrainer(Segmenter):
         else:
             # maybe move it to dataset?
             img = torch.einsum('nhwc->nchw', batch['image'])
+        img = img.detach().cpu()
         img_enc = self.forward(img.float())
-        # print('######################')
         # print("loss type", self.loss_type)
 
         if self.loss_type == 'upsample':
@@ -123,6 +123,8 @@ class SegTrainer(Segmenter):
                 batch['indices_labels'].reshape(-1).to(torch.int64), self.num_classes+1)
             total_loss = self.criterion(
                 img_enc, one_hot_labels.to(torch.float32))
+            one_hot_labels = one_hot_labels.detach().cpu()
+
 
         elif self.loss_type == 'contrastive':
             if self.weighted:
@@ -153,7 +155,8 @@ class SegTrainer(Segmenter):
 
             total_loss = loss[0] + self.l1 * loss[1] + cross_loss
 
-        self.log('train_loss', total_loss)
+        self.log('train_loss', total_loss.detach().cpu())
+        img_enc = img_enc.detach().cpu()
 
         return total_loss
 
@@ -166,7 +169,10 @@ class SegTrainer(Segmenter):
         else:
             # maybe move it to dataset?
             img = torch.einsum('nhwc->nchw', batch['image'])
+        img = img.detach().cpu()
+
         img_enc = self.forward(img.float())
+
 
         if self.loss_type == 'upsample':
             one_hot_labels = torch.nn.functional.one_hot(
@@ -178,9 +184,10 @@ class SegTrainer(Segmenter):
         elif self.loss_type == 'ce':
             one_hot_labels = torch.nn.functional.one_hot(
                 batch['indices_labels'].reshape(-1).to(torch.int64), self.num_classes+1)
-            # print(img_enc.shape, one_hot_labels.shape)
             total_loss = self.criterion(
                 img_enc, one_hot_labels.to(torch.float32))
+            one_hot_labels = one_hot_labels.detach().cpu()
+
 
         elif self.loss_type == 'contrastive':
             if self.weighted:
@@ -219,34 +226,40 @@ class SegTrainer(Segmenter):
 
             # self.aim_logger.experiment.track(aim_image, "Confusion Matrix")
         # return total_loss
-        return [img_enc.detach().cpu(), one_hot_labels.to(torch.float32).detach().cpu(), total_loss.detach().cpu().item()]
+        img_enc = img_enc.detach().cpu()
+        total_loss = total_loss.detach().cpu().item()
 
-    def validation_epoch_end(self, outputs):
-        preds = torch.cat([output[0] for output in outputs])
+        out = [img_enc, one_hot_labels.to(torch.float32), total_loss]
+        self.validation_step_outputs.append(out)
+
+    def on_validation_epoch_end(self):
+        preds = torch.cat([output[0] for output in self.validation_step_outputs])
         preds = self.soft_activation(preds).reshape(-1, preds.shape[-1])
         # preds = preds
-        labels = torch.cat([output[1] for output in outputs])
+        labels = torch.cat([output[1] for output in self.validation_step_outputs])
         labels = labels.argmax(dim=-1).reshape(-1)
         # labels = labels
-        losses = torch.tensor([output[2] for output in outputs])
+        losses = torch.tensor([output[2] for output in self.validation_step_outputs])
 
-        roc = self.auc(preds.cuda(), labels.cuda()).cpu().detach()
-        print(preds.device)
+        auc = AUROC(task="multiclass", num_classes=self.num_classes+1)
+        preds = preds.to('cuda')
+        labels = labels.to('cuda')
+        roc = auc(preds, labels).cpu().detach().item()
+
+        preds = preds.detach().cpu()
+        labels = labels.detach().cpu()
+        
         preds = []
+
         labels = []
         loss = losses.mean()
+
+        print( losses.device)
 
         self.log('val_loss', loss)
         self.log('val_auc', roc)
 
-        # file_path = os.path.join(
-        #     f'./checkpoints/{self.experiment_name}', 'best_model.log')
-
-        # with open(file_path, 'w') as f:
-        #     f.write(
-        #         f'best acc {self.checkpoint_callback_acc.best_model_path} {self.checkpoint_callback_acc.best_model_score}\n')
-        #     f.write(
-        #         f'best loss {self.checkpoint_callback_loss.best_model_path} {self.checkpoint_callback_loss.best_model_score}\n')
+        self.validation_step_outputs.clear()
 
 
     def configure_optimizers(self):

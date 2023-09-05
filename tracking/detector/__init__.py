@@ -1,0 +1,1 @@
+from .inference import init_model

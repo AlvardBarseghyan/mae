@@ -81,11 +81,11 @@ def eval_predictions(model, path_to_knn, train_labels, val_labels, val_gt, datas
 
     acc_matrix_save_path = f'{split}_split_train_{train_images_count}_val_{val_images_count}'
 
-    acc_score = confusion_matrix(
-        preds, val_labels, dataset_name, model, acc_matrix_save_path, which_layer, split)
+    # acc_score = confusion_matrix(
+    #     preds, val_labels, dataset_name, model, acc_matrix_save_path, which_layer, split)
 
-    with open("knn_accuray.txt", "a") as acc_file:
-        acc_file.write(
-            f"{model.upper()} layer{which_layer} {split}_split train:{train_images_count} val:{val_images_count} : {acc_score*100:.1f}\n")
+    # with open("knn_accuray.txt", "a") as acc_file:
+    #     acc_file.write(
+    #         f"{model.upper()} layer{which_layer} {split}_split train:{train_images_count} val:{val_images_count} : {acc_score*100:.1f}\n")
 
     compute_predictions_and_store(val_gt, preds, prediction_path)

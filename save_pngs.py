@@ -25,6 +25,9 @@ for ann in tqdm(annots, total=len(annots)):
     preds = ann['patch_labels']
     # print(preds.shape)
     # preds = cv2.resize(ann['patch_labels'].reshape(64, 128), (2048, 1024), interpolation=cv2.INTER_NEAREST_EXACT)
+    # preds = cv2.resize(ann['patch_labels'].reshape(56, 112), (2048, 1024), interpolation=cv2.INTER_NEAREST_EXACT)
+    # preds = cv2.resize(ann['patch_labels'].reshape(32, 48), (672, 448), interpolation=cv2.INTER_NEAREST_EXACT)
+
     cv2.imwrite(path, preds)
 
 

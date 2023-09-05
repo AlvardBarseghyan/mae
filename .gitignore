@@ -8,7 +8,6 @@
 *.jpg
 *.jpeg
 *.png
-*.ipynb
 *.txt
 openseg*
 evaluation
